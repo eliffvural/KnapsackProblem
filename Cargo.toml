@@ -1,0 +1,3 @@
+[dependencies]
+rand = "0.8.5"
+csv = "1.3.0"
