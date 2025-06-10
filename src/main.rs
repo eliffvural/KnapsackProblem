@@ -1,13 +1,11 @@
-use rand::Rng;
 use std::time::Instant;
-use csv::Writer;
 use std::error::Error;
+use std::fs::File;
+use std::io::{BufRead, BufReader, Write};
+use std::fs::OpenOptions;
 
 fn knapsack(n: usize, W: usize, values: &Vec<i32>, weights: &Vec<i32>) -> (i32, Vec<i32>) {
-    // DP tablosu oluştur (n+1 x W+1 boyutunda)
     let mut dp = vec![vec![0; W + 1]; n + 1];
-
-    // DP tablosunu doldur
     for i in 1..=n {
         for w in 0..=W {
             if weights[i - 1] as usize <= w {
@@ -17,11 +15,7 @@ fn knapsack(n: usize, W: usize, values: &Vec<i32>, weights: &Vec<i32>) -> (i32, 
             }
         }
     }
-
-    // Optimal değeri bul
     let optimal_value = dp[n][W];
-
-    // Seçilen eşyaları bul (geri izleme)
     let mut selected_items = vec![0; n];
     let mut w = W;
     for i in (1..=n).rev() {
@@ -30,15 +24,30 @@ fn knapsack(n: usize, W: usize, values: &Vec<i32>, weights: &Vec<i32>) -> (i32, 
             w -= weights[i - 1] as usize;
         }
     }
-
     (optimal_value, selected_items)
 }
 
-fn generate_data(num_items: usize, max_weight: usize) -> (Vec<i32>, Vec<i32>) {
-    let mut rng = rand::thread_rng();
-    let values: Vec<i32> = (0..num_items).map(|_| rng.gen_range(1..=100)).collect();
-    let weights: Vec<i32> = (0..num_items).map(|_| rng.gen_range(1..=max_weight as i32)).collect();
-    (values, weights)
+fn read_dataset(filename: &str) -> (usize, usize, Vec<i32>, Vec<i32>) {
+    let file = File::open(filename).expect("Dosya açılamadı");
+    let reader = BufReader::new(file);
+    let mut lines = reader.lines();
+    
+    let first_line = lines.next().expect("Dosyada veri yok").expect("Satır okunamadı");
+    let parts: Vec<&str> = first_line.split_whitespace().collect();
+    let n: usize = parts[0].parse().expect("Eşya sayısı parse edilemedi");
+    let W: usize = parts[1].parse().expect("Kapasite parse edilemedi");
+
+    let mut values = Vec::new();
+    let mut weights = Vec::new();
+    for line in lines {
+        let line = line.expect("Satır okunamadı");
+        let parts: Vec<&str> = line.split_whitespace().collect();
+        if parts.len() == 2 {
+            values.push(parts[0].parse::<i32>().expect("Değer parse edilemedi"));
+            weights.push(parts[1].parse::<i32>().expect("Ağırlık parse edilemedi"));
+        }
+    }
+    (n, W, values, weights)
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -48,9 +57,13 @@ fn main() -> Result<(), Box<dyn Error>> {
     let example_values = vec![8, 10, 15, 4];
     let example_weights = vec![4, 5, 8, 3];
 
-    // Diğer boyutlar için veri setleri
-    let sizes = vec![40, 300, 1000, 10000];
-    let max_weight = 1000;
+    // Veri seti dosyaları
+    let dataset_files = vec![
+        "Dataset/ks_40_0",
+        "Dataset/ks_300_0",
+        "Dataset/ks_1000_0",
+        "Dataset/ks_10000_0",
+    ];
 
     // Sonuçları saklamak için vektörler
     let mut all_sizes = vec![example_n];
@@ -66,32 +79,33 @@ fn main() -> Result<(), Box<dyn Error>> {
     all_selected_items.push(selected_items);
     all_runtimes.push(duration);
 
-    // Diğer boyutlar için çalıştır
-    for &size in sizes.iter() {
-        let (values, weights) = generate_data(size, max_weight);
+    // Veri setlerini çalıştır
+    for file in dataset_files.iter() {
+        let (n, W, values, weights) = read_dataset(file);
         let start = Instant::now();
-        let (optimal_value, selected_items) = knapsack(size, max_weight, &values, &weights);
+        let (optimal_value, selected_items) = knapsack(n, W, &values, &weights);
         let duration = start.elapsed().as_secs_f64();
-        all_sizes.push(size);
+        all_sizes.push(n);
         all_optimal_values.push(optimal_value);
         all_selected_items.push(selected_items);
         all_runtimes.push(duration);
     }
 
-    // Tabloyu yazdır
-    println!("Öğrenci Numarası, Ad Soyad");
-    println!("Dosya Boyut\tOptimal Değer\tOptimal Çözüm\t\tOptimal Çözüme Dahil Edilen Itemler (TÜMÜ)");
-    println!("\t\t\t(itemler arasında SADECE bir virgül bırakılmalıdır, virgül dışında herhangi bir karakter kullanılmamalıdır)\t(itemler arasında SADECE bir virgül bırakılmalıdır, virgül dışında herhangi bir karakter kullanılmamalıdır)");
-    println!("ÖRNEK\t4\t19\t\t0,0,1,1\t\t3,4");
+    // Terminal çıktısını bir string olarak oluştur
+    let mut output = String::new();
+    output.push_str("222802077, Elif Vural\n");
+    output.push_str("Dosya Boyut\tOptimal Değer\tÇalışma Süresi (s)\tOptimal Çözüm\t\t\tOptimal Çözüme Dahil Edilen Itemler (TÜMÜ)\n");
+    output.push_str("ÖRNEK\t4\t19\t\t-\t\t0,0,1,1\t\t3,4\n");
+
     for i in 0..all_sizes.len() {
         let size = all_sizes[i];
         let optimal_value = all_optimal_values[i];
-        let selected = &all_selected_items[i];
         let runtime = all_runtimes[i];
+        let selected = &all_selected_items[i];
 
         // Optimal çözümü formatla
         let selected_str: String = selected.iter().map(|x| x.to_string()).collect::<Vec<String>>().join(",");
-        
+
         // Seçilen itemlerin numaralarını formatla
         let mut selected_indices: Vec<String> = Vec::new();
         for j in 0..selected.len() {
@@ -101,22 +115,28 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
         let selected_indices_str = selected_indices.join(",");
 
-        // Satırı yazdır
-        if i == 0 {
-            println!("SONUÇ\t{}\t{}\t\t{}\t\t{}", size, optimal_value, selected_str, selected_indices_str);
+        // Satırı oluştur
+        let line = if i == 0 {
+            format!("SONUÇ\t{}\t{}\t\t{:.6}\t\t{}\t\t{}\n", size, optimal_value, runtime, selected_str, selected_indices_str)
         } else {
-            println!("\t{}\t{}\t\t{}\t\t{}", size, optimal_value, selected_str, selected_indices_str);
-        }
+            format!("\t{}\t{}\t\t{:.6}\t\t{}\t\t{}\n", size, optimal_value, runtime, selected_str, selected_indices_str)
+        };
+        output.push_str(&line);
     }
 
-    // CSV dosyasına yaz
-    let mut wtr = Writer::from_path("runtimes.csv")?;
-    wtr.write_record(&["Dosya Boyutu", "Çalışma Süresi (saniye)"])?;
-    for (size, runtime) in all_sizes.iter().zip(all_runtimes.iter()) {
-        wtr.write_record(&[size.to_string(), runtime.to_string()])?;
-    }
-    wtr.flush()?;
-    println!("\nSüreler 'runtimes.csv' dosyasına kaydedildi.");
+    // Terminalde yazdır
+    print!("{}", output);
+
+    // Aynı çıktıyı runtimes.csv dosyasına yaz
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .open("runtimes.csv")?;
+    file.write_all(output.as_bytes())?;
+    file.flush()?;
+
+    println!("\nSonuçlar 'runtimes.csv' dosyasına kaydedildi.");
 
     Ok(())
 }
